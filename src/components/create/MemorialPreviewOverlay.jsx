@@ -26,20 +26,12 @@ const MemorialPreviewOverlay = ({ isOpen, onClose, data }) => {
     // Preparation functions (simplified from MemorialPage.jsx)
     const firstName = data.name ? data.name.split(' ')[0] : "Name";
     
-    const displayComments = [
-        { name: "Sarah Mitchell", date: "Preview Only", text: "This is a preview of how the guestbook will look. Your friends and family can leave messages like this one.", imageUrl: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=2574&auto=format&fit=crop" },
-        { name: "Michael Chen", date: "Preview Only", text: "A beautiful life remembered. You can manage these messages from your admin dashboard.", imageUrl: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?q=80&w=2670&auto=format&fit=crop" }
-    ];
-
     const allVideos = [
         ...(data.videos || []).map(v => ({ type: 'file', url: (v instanceof File ? URL.createObjectURL(v) : v) })),
         ...(data.videoUrls || []).filter(u => u && u.trim() !== '').map(url => ({ type: 'url', url }))
     ];
 
-    const galleryImages = (data.images && data.images.length > 0) ? data.images : [
-        "https://images.unsplash.com/photo-1544299863-71a5c60205b3?q=80&w=2670&auto=format&fit=crop",
-        "https://images.unsplash.com/photo-1582239088698-c91726a97864?q=80&w=2670&auto=format&fit=crop"
-    ];
+    const galleryImages = data.images && data.images.length > 0 ? data.images : [];
 
     return (
         <div className="fixed inset-0 z-[100] bg-[#FAF9F6] overflow-y-auto animate-fadeIn custom-scrollbar">
@@ -83,6 +75,21 @@ const MemorialPreviewOverlay = ({ isOpen, onClose, data }) => {
             >
                 <FontAwesomeIcon icon={faTimes} className="text-xl" />
             </button>
+
+            {/* Cover Photo Banner */}
+            {(data.cover || data.coverUrl) && (
+                <div className="relative w-full h-48 md:h-64 lg:h-80 overflow-hidden">
+                    <img
+                        src={
+                            data.cover instanceof File ? URL.createObjectURL(data.cover) :
+                            data.cover || data.coverUrl
+                        }
+                        alt="Cover"
+                        className="w-full h-full object-cover"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-transparent to-[#FAF9F6]"></div>
+                </div>
+            )}
 
             <div className="max-w-7xl mx-auto px-4 md:px-8 py-6 lg:py-10 relative">
                 {/* Decorative Vertical Side Line */}
@@ -154,7 +161,8 @@ const MemorialPreviewOverlay = ({ isOpen, onClose, data }) => {
                             </div>
                         </section>
 
-                        {/* Photo Gallery - Polaroid Style */}
+                        {/* Photo Gallery - only shown when images uploaded */}
+                        {galleryImages.length > 0 && (
                         <section className="text-center">
                             <div className="flex flex-col items-center space-y-6">
                                 <div className="w-14 h-14 rounded-full border border-primary/20 flex items-center justify-center text-primary/60 text-2xl bg-white shadow-sm">
@@ -163,7 +171,7 @@ const MemorialPreviewOverlay = ({ isOpen, onClose, data }) => {
                                 <h2 className="text-3xl md:text-4xl font-serif font-normal text-dark tracking-tight">
                                     Memories
                                 </h2>
-                                
+
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-12 w-full max-w-5xl px-4 mt-8">
                                     {galleryImages.map((item, index) => {
                                         const src = (item instanceof File) ? URL.createObjectURL(item) : item;
@@ -187,8 +195,9 @@ const MemorialPreviewOverlay = ({ isOpen, onClose, data }) => {
                                         );
                                     })}
                                 </div>
-                                </div>
+                            </div>
                         </section>
+                        )}
 
                         {/* Video Section */}
                         {allVideos.length > 0 && (
@@ -240,26 +249,18 @@ const MemorialPreviewOverlay = ({ isOpen, onClose, data }) => {
                                     <FontAwesomeIcon icon={faPen} className="text-xs" />
                                 </div>
                                 <h2 className="text-3xl md:text-4xl font-serif font-normal text-dark tracking-tight">
-                                    Guestbook Preview
+                                    Words from the Heart
                                 </h2>
 
-                                <div className="w-full max-w-4xl grid grid-cols-1 md:grid-cols-2 gap-8 px-4 mt-8">
-                                    {displayComments.map((comment, index) => (
-                                        <div key={index} className="bg-white rounded-[35px] shadow-lg p-8 text-left border border-gray-100 relative overflow-hidden group">
-                                            <div className="absolute top-0 left-0 w-[60%] h-24 border-t-[4px] border-l-[4px] border-[#D4AF37] rounded-tl-[35px]"></div>
-                                            
-                                            <div className="flex items-start gap-4 mb-4 mt-4">
-                                                <div className="w-14 h-14 rounded-full border-[3px] border-[#D4AF37] overflow-hidden shadow-md">
-                                                    <img src={comment.imageUrl} className="w-full h-full object-cover" alt="" />
-                                                </div>
-                                                <div>
-                                                    <h4 className="font-bold text-dark">{comment.name}</h4>
-                                                    <p className="text-[10px] text-gray-400 uppercase tracking-widest">{comment.date}</p>
-                                                </div>
-                                            </div>
-                                            <p className="text-gray-500 italic text-sm leading-relaxed">"{comment.text}"</p>
-                                        </div>
-                                    ))}
+                                <div className="flex flex-col items-center justify-center py-12 text-gray-400 space-y-3">
+                                    <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" className="text-gray-300">
+                                        <circle cx="12" cy="12" r="10"/>
+                                        <path d="M8 15s1.5-2 4-2 4 2 4 2"/>
+                                        <line x1="9" y1="9" x2="9.01" y2="9" strokeWidth="2" strokeLinecap="round"/>
+                                        <line x1="15" y1="9" x2="15.01" y2="9" strokeWidth="2" strokeLinecap="round"/>
+                                    </svg>
+                                    <p className="text-[13px] tracking-[0.1em] uppercase font-medium">No reviews added yet.</p>
+                                    <p className="text-[11px] text-gray-400 max-w-xs text-center">Visitors will be able to leave messages after the page is published.</p>
                                 </div>
                             </div>
                         </section>

@@ -537,26 +537,21 @@ export const TributeProvider = ({ children }) => {
     }, [settings.site_title, settings.site_favicon]);
 
     const addTribute = async (tributeData) => {
-        try {
-            const res = await fetch(`${API_URL}/tributes`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...getAuthHeaders()
-                },
-                body: JSON.stringify(tributeData)
-            });
-            if (!res.ok) {
-                const errData = await res.json().catch(() => ({}));
-                throw new Error(errData.error || "Failed to add tribute");
-            }
-            const newTribute = await res.json();
-            await fetchTributes();
-            return newTribute;
-        } catch (error) {
-            console.error("Add tribute error:", error);
-            throw error;
+        const res = await fetch(`${API_URL}/tributes`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                ...getAuthHeaders()
+            },
+            body: JSON.stringify(tributeData)
+        });
+        if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.error || "Failed to add tribute");
         }
+        const newTribute = await res.json();
+        // Return without background fetch to prevent race conditions during media uploads
+        return newTribute;
     };
 
     const deleteTribute = async (id) => {

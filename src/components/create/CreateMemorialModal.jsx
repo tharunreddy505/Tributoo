@@ -9,13 +9,14 @@ import { useTranslation } from 'react-i18next';
 import { useTributeContext } from '../../context/TributeContext';
 import { GoogleMap, Marker, useJsApiLoader, Autocomplete } from '@react-google-maps/api';
 import MemorialPreviewOverlay from './MemorialPreviewOverlay';
+import { compressImage } from '../../utils/imageOptimizer';
 
 const MAPS_LIBRARIES = ['places'];
 
 const CreateMemorialModal = ({ isOpen, onClose, selectedPackage }) => {
     const { t } = useTranslation();
     const navigate = useNavigate();
-    const { addTribute, uploadMediaFile, showToast, showAlert, products, addToCart } = useTributeContext();
+    const { addTribute, uploadMediaFile, fetchTributes, showToast, showAlert, products, addToCart } = useTributeContext();
     const [submitting, setSubmitting] = useState(false);
     const [step, setStep] = useState(1);
 
@@ -211,9 +212,18 @@ const CreateMemorialModal = ({ isOpen, onClose, selectedPackage }) => {
             return;
         }
 
+        // Check if user is logged in before attempting
+        const token = localStorage.getItem('token');
+        if (!token) {
+            showToast('Please log in to create a memorial.', 'error');
+            return;
+        }
+
         setSubmitting(true);
         try {
-            const slug = formData.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+            // Make slug unique by appending timestamp if needed
+            const baseSlug = formData.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+            const slug = `${baseSlug}-${Date.now().toString(36)}`;
             
             // Format dates as "Mar 1, 2026 - Mar 19, 2026"
             const formatDate = (dateStr) => {
@@ -226,9 +236,11 @@ const CreateMemorialModal = ({ isOpen, onClose, selectedPackage }) => {
             const passingStr = formatDate(formData.passingDate);
             const dates = (birthStr && passingStr) ? `${birthStr} - ${passingStr}` : birthStr;
 
-            // Get user ID from local storage to associate memorial with user
             const user = JSON.parse(localStorage.getItem('user') || '{}');
             const userId = user.id || user.user_id;
+
+            const photoB64 = formData.photo ? await compressImage(formData.photo, { maxWidth: 600, quality: 0.6 }) : null;
+            const coverB64 = formData.cover ? await compressImage(formData.cover, { maxWidth: 1200, quality: 0.6 }) : null;
 
             const tributeData = {
                 name: formData.name,
@@ -239,6 +251,8 @@ const CreateMemorialModal = ({ isOpen, onClose, selectedPackage }) => {
                 status: formData.status,
                 slug,
                 userId,
+                photo: photoB64,
+                coverUrl: coverB64,
                 videoUrls: formData.videoUrls.filter(url => url.trim() !== ''),
                 isAnniversaryReminder: formData.isAnniversaryReminder,
                 reminderOptions: formData.isAnniversaryReminder === 'yes' ? formData.reminderOptions : [],
@@ -264,12 +278,10 @@ const CreateMemorialModal = ({ isOpen, onClose, selectedPackage }) => {
                     return;
                 }
 
-                // Create a full draft with ALL media files (photo, cover, gallery)
+                // Create a full draft with ALL media files (photo, cover natively in tributeData, gallery added)
                 const fullDraft = { 
                     ...tributeData,
                     selectedPackage: selectedPackage, // PASS THIS TO DRAFT
-                    photo: formData.photo,
-                    cover: formData.cover,
                     images: formData.images,
                     videos: formData.videos,
                     documents: formData.documents
@@ -302,13 +314,23 @@ const CreateMemorialModal = ({ isOpen, onClose, selectedPackage }) => {
             const createdTribute = await addTribute(tributeData);
 
             if (createdTribute && createdTribute.id) {
-                if (formData.photo) await uploadMediaFile(createdTribute.id, 'photo', formData.photo);
-                if (formData.cover) await uploadMediaFile(createdTribute.id, 'cover', formData.cover);
+                const tid = createdTribute.id;
 
-                // Gallery uploads
-                for (const img of formData.images) await uploadMediaFile(createdTribute.id, 'image', img);
-                for (const vid of formData.videos) await uploadMediaFile(createdTribute.id, 'video', vid);
-                for (const doc of formData.documents) if (doc.file) await uploadMediaFile(createdTribute.id, 'document', doc.file);
+                // Photo and cover are now included natively via tributeData
+
+                // Gallery, videos, documents — silent failures OK
+                for (const img of formData.images) {
+                    try { await uploadMediaFile(tid, 'image', img, true); } catch (e) { console.warn('Image upload failed:', e.message); }
+                }
+                for (const vid of formData.videos) {
+                    try { await uploadMediaFile(tid, 'video', vid, true); } catch (e) { console.warn('Video upload failed:', e.message); }
+                }
+                for (const doc of formData.documents) {
+                    if (doc.file) try { await uploadMediaFile(tid, 'document', doc.file, true); } catch (e) { console.warn('Doc upload failed:', e.message); }
+                }
+
+                // Refresh context with all uploaded media
+                await fetchTributes().catch(e => console.warn("Refresh failed:", e.message));
 
                 showToast('Memorial created successfully!', 'success');
                 onClose();
@@ -316,7 +338,14 @@ const CreateMemorialModal = ({ isOpen, onClose, selectedPackage }) => {
             }
         } catch (error) {
             console.error('Error creating memorial:', error);
-            showToast('Failed to create memorial. Please try again.', 'error');
+            const msg = error?.message || '';
+            if (msg.includes('401') || msg.toLowerCase().includes('token') || msg.toLowerCase().includes('access denied')) {
+                showToast('Session expired. Please log in again.', 'error');
+            } else if (msg.toLowerCase().includes('slug') || msg.toLowerCase().includes('unique') || msg.toLowerCase().includes('duplicate')) {
+                showToast('A memorial with this name already exists. Please use a different name.', 'error');
+            } else {
+                showToast(msg || 'Failed to create memorial. Please try again.', 'error');
+            }
         } finally {
             setSubmitting(false);
         }

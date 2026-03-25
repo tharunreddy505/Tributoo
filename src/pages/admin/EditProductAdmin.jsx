@@ -84,15 +84,9 @@ const EditProductAdmin = () => {
     const handleImageUpload = (e) => {
         const file = e.target.files[0];
         if (file) {
-            setFormData(prev => ({ ...prev, image_url: file }));
             if (previews.image && previews.image.startsWith('blob:')) URL.revokeObjectURL(previews.image);
+            setFormData(prev => ({ ...prev, image_url: file }));
             setPreviews({ image: URL.createObjectURL(file) });
-            // Revoke previous object URL if it exists
-            if (previews.image && previews.image.startsWith('blob:')) {
-                URL.revokeObjectURL(previews.image);
-            }
-            setFormData(prev => ({ ...prev, image_url: file })); // Store the File object
-            setPreviews({ image: URL.createObjectURL(file) }); // Create object URL for preview
         }
     };
 
@@ -476,9 +470,9 @@ const EditProductAdmin = () => {
                             className="aspect-square rounded-lg border-2 border-dashed border-gray-100 bg-gray-50 flex items-center justify-center cursor-pointer hover:border-primary hover:bg-primary/5 transition-all overflow-hidden relative group"
                             onClick={() => document.getElementById('product-image').click()}
                         >
-                            {formData.image_url ? (
+                            {(previews.image || formData.image_url) ? (
                                 <>
-                                    <img src={formData.image_url} alt="Product" className="w-full h-full object-cover" />
+                                    <img src={previews.image || formData.image_url} alt="Product" className="w-full h-full object-cover" />
                                     <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-white text-xs font-bold">
                                         Change Image
                                     </div>
@@ -491,10 +485,10 @@ const EditProductAdmin = () => {
                             )}
                         </div>
                         <input type="file" id="product-image" className="hidden" accept="image/*" onChange={handleImageUpload} />
-                        {formData.image_url && (
+                        {(previews.image || formData.image_url) && (
                             <button
                                 type="button"
-                                onClick={() => setFormData(prev => ({ ...prev, image_url: null }))}
+                                onClick={() => { setFormData(prev => ({ ...prev, image_url: null })); setPreviews({ image: null }); }}
                                 className="w-full py-2 text-xs font-bold text-red-500 hover:bg-red-50 rounded transition-colors flex items-center justify-center gap-2"
                             >
                                 <FontAwesomeIcon icon={faTrash} />

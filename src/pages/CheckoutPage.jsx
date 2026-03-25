@@ -178,6 +178,8 @@ const CheckoutPage = () => {
 
                     // Strip files from JSON before creating record
                     const { photo, cover, images, videos, documents, ...tributeInfo } = draft;
+                    if (typeof photo === 'string') tributeInfo.photo = photo;
+                    if (typeof cover === 'string') tributeInfo.coverUrl = cover;
 
                     // Create the tribute record
                     const tributeRes = await fetch(`${API_URL}/api/tributes`, {
@@ -219,20 +221,19 @@ const CheckoutPage = () => {
                         }
 
                         // Sequentially upload all media files using binary FormData
-                        // Using individual try-blocks so one bad file doesn't crash the whole process
                         try {
-                            if (photo instanceof File) await uploadMediaFile(newTribute.id, 'photo', photo, true);
-                        } catch (e) { console.error("Photo upload failed:", e); }
+                            if (photo && typeof photo !== 'string') await uploadMediaFile(newTribute.id, 'photo', photo, true);
+                        } catch (e) { console.error("Legacy photo upload failed:", e); }
                         
                         try {
-                            if (cover instanceof File) await uploadMediaFile(newTribute.id, 'cover', cover, true);
-                        } catch (e) { console.error("Cover upload failed:", e); }
+                            if (cover && typeof cover !== 'string') await uploadMediaFile(newTribute.id, 'cover', cover, true);
+                        } catch (e) { console.error("Legacy cover upload failed:", e); }
 
                         // Upload gallery images
                         if (images?.length > 0) {
                             for (const img of images) {
                                 try {
-                                    if (img instanceof File) await uploadMediaFile(newTribute.id, 'image', img, true);
+                                    if (img) await uploadMediaFile(newTribute.id, 'image', img, true);
                                 } catch (e) { console.error("Gallery image upload failed:", e); }
                             }
                         }
@@ -241,7 +242,7 @@ const CheckoutPage = () => {
                         if (videos?.length > 0) {
                             for (const vid of videos) {
                                 try {
-                                    if (vid instanceof File) await uploadMediaFile(newTribute.id, 'video', vid, true);
+                                    if (vid) await uploadMediaFile(newTribute.id, 'video', vid, true);
                                 } catch (e) { console.error("Video upload failed:", e); }
                             }
                         }
@@ -250,7 +251,7 @@ const CheckoutPage = () => {
                         if (documents?.length > 0) {
                             for (const doc of documents) {
                                 try {
-                                    if (doc instanceof File) await uploadMediaFile(newTribute.id, 'document', doc, true);
+                                    if (doc && doc.file) await uploadMediaFile(newTribute.id, 'document', doc.file, true);
                                 } catch (e) { console.error("Document upload failed:", e); }
                             }
                         }

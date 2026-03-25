@@ -7,11 +7,12 @@ import { useTributeContext } from '../context/TributeContext';
 import { useTranslation } from 'react-i18next';
 import TranslatedText from '../components/TranslatedText';
 import Navbar from '../components/layout/Navbar';
+import { API_URL } from '../config';
 
 const MemorialPage = () => {
     const { t, i18n } = useTranslation();
     const { id } = useParams();
-    const { tributes, incrementViewCount, addComment, isInitialized } = useTributeContext();
+    const { tributes, incrementViewCount, addComment, isInitialized, showToast } = useTributeContext();
     const location = useLocation();
     const viewTracked = useRef(false);
 
@@ -25,6 +26,7 @@ const MemorialPage = () => {
     const [showAllVideos, setShowAllVideos] = useState(false);
     const fileInputRef = useRef(null);
     const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
+    const [freshTribute, setFreshTribute] = useState(null);
 
     useEffect(() => {
         const handleResize = () => setIsMobile(window.innerWidth < 768);
@@ -32,8 +34,17 @@ const MemorialPage = () => {
         return () => window.removeEventListener('resize', handleResize);
     }, []);
 
+    // Fetch fresh tribute data directly from API so photos always show
+    useEffect(() => {
+        if (!id) return;
+        fetch(`${API_URL}/api/tributes/by-slug/${encodeURIComponent(id)}`)
+            .then(r => r.ok ? r.json() : null)
+            .then(data => { if (data) setFreshTribute(data); })
+            .catch(() => {});
+    }, [id]);
+
     // Find tribute from context (handles persisted data)
-    const tribute = tributes.find(t => String(t.id) === id || t.slug === id);
+    const tribute = freshTribute || tributes.find(t => String(t.id) === id || t.slug === id);
 
     console.log("Memory Page Debug - ID:", id, "Initialized:", isInitialized);
     console.log("Tribute Found:", !!tribute);
@@ -60,12 +71,14 @@ const MemorialPage = () => {
         id: rawData?.id || 'demo'
     };
 
-    const galleryImages = (data.images && data.images.length > 0 ? data.images : [
+    const demoImages = [
         "https://images.unsplash.com/photo-1544299863-71a5c60205b3?q=80&w=2670&auto=format&fit=crop",
         "https://images.unsplash.com/photo-1582239088698-c91726a97864?q=80&w=2670&auto=format&fit=crop",
         "https://images.unsplash.com/photo-1511895426328-dc8714191300?q=80&w=2674&auto=format&fit=crop",
         "https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?q=80&w=2832&auto=format&fit=crop",
-    ]);
+    ];
+    // For real tributes: only use actual uploaded images. Fallback only in demo mode.
+    const galleryImages = data.images && data.images.length > 0 ? data.images : [];
     
     // Combine video URLs and uploaded files (Files first, then URLs)
     const allVideos = [
@@ -193,12 +206,20 @@ const MemorialPage = () => {
 
         if (tribute) {
             // Use context function
-            addComment(tribute.id, {
+            await addComment(tribute.id, {
                 name: condolenceForm.name,
                 text: condolenceForm.comment,
                 email: condolenceForm.email,
                 image: base64Image
             });
+
+            if (showToast) showToast("Comment successfully submitted!", "success");
+
+            // Re-fetch the fresh data natively so the comment appears immediately!
+            fetch(`${API_URL}/api/tributes/by-slug/${encodeURIComponent(tribute.slug || tribute.id || id)}`)
+                .then(r => r.ok ? r.json() : null)
+                .then(data => { if (data) setFreshTribute(data); })
+                .catch(() => {});
 
         } else {
             // Demo mode logic
@@ -213,19 +234,34 @@ const MemorialPage = () => {
     // Safe name split for display
     const firstName = data?.name?.split(' ')[0] || "Eleanor";
 
-    // Prepare comments to display: use tribute comments if exist, otherwise mockup defaults
-    const displayComments = (data.comments && data.comments.length > 0) ? data.comments : [
+    const demoComments = [
         { name: "Sarah Mitchell", date: "January 20, 2026", text: t('memorial_page.demo_comment_3_text', 'Mom, you were my guiding star, my safe harbor and my greatest teacher. Your love made me the person I am today. I miss you every single day.'), imageUrl: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=2574&auto=format&fit=crop" },
         { name: "Laura Collins", date: "January 20, 2026", text: t('memorial_page.demo_comment_4_text', 'Your kindness and warmth touched everyone around you. We will carry your memory in our hearts forever.'), imageUrl: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?q=80&w=2576&auto=format&fit=crop" },
         { name: "Michael Chen", date: "January 18, 2026", text: t('memorial_page.demo_comment_1_text'), imageUrl: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?q=80&w=2670&auto=format&fit=crop" },
         { name: "Rebecca Thompson", date: "January 17, 2026", text: t('memorial_page.demo_comment_2_text'), imageUrl: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?q=80&w=2670&auto=format&fit=crop" }
     ];
+    // For real tributes: only show actual comments. Demo fallback only in demo mode.
+    const displayComments = data.comments && data.comments.length > 0
+        ? data.comments
+        : (isDemo ? demoComments : []);
 
     return (
         <div className="bg-[#FAF9F6] min-h-screen font-sans selection:bg-primary/30 text-dark">
             <Navbar />
 
-            {/* Top Draft Banner (Fixed according to screenshot) */}
+            {/* Cover Photo Banner */}
+            {(data.coverUrl || isDemo) && (
+                <div className="relative w-full h-48 md:h-64 lg:h-80 overflow-hidden">
+                    <img
+                        src={data.coverUrl || "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?q=80&w=2670&auto=format&fit=crop"}
+                        alt="Cover"
+                        className="w-full h-full object-cover"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-transparent to-[#FAF9F6]"></div>
+                </div>
+            )}
+
+            {/* Top Draft Banner */}
             {(tribute?.status === 'draft' || isDemo) && (
                 <div className="bg-[#F1E9DA] py-3 text-center text-[10px] tracking-[0.15em] text-dark/60 uppercase font-medium border-b border-dark/5">
                     {t('memorial_page.draft_mode_banner')}
@@ -347,7 +383,8 @@ const MemorialPage = () => {
                             </div>
                         </section>
 
-                        {/* Photo Gallery */}
+                        {/* Photo Gallery — hide for real memorials with no photos */}
+                        {(isDemo || galleryImages.length > 0) && (
                         <section id="photo-gallery" className="text-center">
                             <div className="flex flex-col items-center space-y-4">
                                 <div className="w-14 h-14 rounded-full border border-primary/20 flex items-center justify-center text-primary/60 text-2xl bg-white shadow-sm">
@@ -365,7 +402,7 @@ const MemorialPage = () => {
 
                                 {/* Photo Grid - Polaroid Style */}
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-12 w-full max-w-5xl px-4">
-                                    {galleryImages.slice(0, showAllPhotos ? galleryImages.length : 4).map((item, index) => {
+                                    {(isDemo && galleryImages.length === 0 ? demoImages : galleryImages).slice(0, showAllPhotos ? galleryImages.length : 4).map((item, index) => {
                                         const src = typeof item === 'object' ? item.url : item;
                                         return (
                                             <div
@@ -418,8 +455,10 @@ const MemorialPage = () => {
                                 </div>
                             </div>
                         </section>
+                        )}
 
-                        {/* Video Section */}
+                        {/* Video Section — hide entirely for real memorials with no videos */}
+                        {(isDemo || allVideos.length > 0) && (
                         <section id="video-section" className="text-center">
                             <div className="flex flex-col items-center space-y-4">
                                 <div className="w-14 h-14 rounded-full border border-primary/20 flex items-center justify-center text-primary/60 text-xl bg-white shadow-sm">
@@ -484,6 +523,7 @@ const MemorialPage = () => {
                                 )}
                             </div>
                         </section>
+                        )}
 
                         {/* Guestbook Section */}
                         <section id="guestbook" className="text-center">
@@ -500,6 +540,20 @@ const MemorialPage = () => {
                                     </p>
                                 </div>
 
+                                {displayComments.length === 0 ? (
+                                    /* No reviews yet */
+                                    <div className="flex flex-col items-center justify-center py-16 text-gray-400 space-y-3">
+                                        <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" className="text-gray-300">
+                                            <circle cx="12" cy="12" r="10"/>
+                                            <path d="M8 15s1.5-2 4-2 4 2 4 2"/>
+                                            <line x1="9" y1="9" x2="9.01" y2="9" strokeWidth="2" strokeLinecap="round"/>
+                                            <line x1="15" y1="9" x2="15.01" y2="9" strokeWidth="2" strokeLinecap="round"/>
+                                        </svg>
+                                        <p className="text-[13px] tracking-[0.1em] uppercase font-medium">
+                                            {t('memorial_page.no_reviews', 'No reviews added yet.')}
+                                        </p>
+                                    </div>
+                                ) : (<>
                                 {/* Carousel Navigation - Centered above cards, delicate and ivory */}
                                 <div className="flex gap-4 justify-center py-4 mb-2">
                                     <button
@@ -580,6 +634,7 @@ const MemorialPage = () => {
                                         ))}
                                     </div>
                                 </div>
+                                </>)}
 
                                 {/* Bottom CTA Box - Redesigned matching screenshot */}
                                 <div className="w-full max-w-3xl mx-auto bg-white/50 backdrop-blur-sm p-14 mt-10 text-center border border-[#D4AF37]/10 shadow-[0_30px_70px_rgba(0,0,0,0.03)] relative group rounded-[2px] ring-1 ring-[#D4AF37]/5">

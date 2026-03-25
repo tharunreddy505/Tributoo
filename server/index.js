@@ -32,7 +32,7 @@ const storage = multer.diskStorage({
     },
     filename: (req, file, cb) => {
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        const cleanName = file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
+        const cleanName = (file.originalname || 'file').replace(/[^a-zA-Z0-9.-]/g, '_');
         cb(null, uniqueSuffix + '-' + cleanName);
     }
 });
@@ -1691,6 +1691,57 @@ app.post('/api/tributes', authenticateToken, async (req, res) => {
     } catch (err) {
         console.error("Database Insert Error:", err.message);
         res.status(500).json({ error: err.message });
+    }
+});
+
+// Public endpoint: get a single tribute by slug (for memorial page fresh load)
+app.get('/api/tributes/by-slug/:slug', async (req, res) => {
+    try {
+        const { slug } = req.params;
+        const result = await pool.query(`
+            SELECT t.*, s.status as subscription_status, s.is_lifetime, s.trial_end, s.paid_end,
+                   u.username as author_name, p.name as product_name
+            FROM tributes t
+            LEFT JOIN subscriptions s ON t.id = s.memorial_id
+            LEFT JOIN users u ON t.user_id = u.id
+            LEFT JOIN products p ON s.product_id = p.id
+            WHERE (t.slug = $1 OR t.id::text = $1) AND t.status != 'deleted'
+            LIMIT 1
+        `, [slug]);
+
+        if (!result.rows.length) return res.status(404).json({ error: 'Not found' });
+
+        const row = result.rows[0];
+        const tribute = mapTribute(row, req);
+
+        // Attach media
+        const mediaRes = await pool.query(
+            'SELECT id, type, url, tribute_id, alt_text, title, caption, description FROM media WHERE tribute_id = $1 ORDER BY position ASC, created_at ASC',
+            [row.id]
+        );
+        mediaRes.rows.forEach(m => {
+            const mediaObj = { id: m.id, url: formatMediaUrl(m.url, req), alt_text: m.alt_text, title: m.title, caption: m.caption, description: m.description };
+            if (m.type === 'image') tribute.images.push(mediaObj);
+            if (m.type === 'video') tribute.videos.push(mediaObj);
+        });
+
+        // Attach comments
+        const commentsRes = await pool.query(
+            'SELECT * FROM comments WHERE tribute_id = $1 ORDER BY created_at DESC',
+            [row.id]
+        );
+        tribute.comments = commentsRes.rows.map(c => ({
+            id: c.id,
+            name: c.name,
+            text: c.content,
+            imageUrl: formatMediaUrl(c.image_url, req),
+            date: new Date(c.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+        }));
+
+        res.json(tribute);
+    } catch (e) {
+        console.error('by-slug error:', e.message);
+        res.status(500).json({ error: e.message });
     }
 });
 
@@ -3809,6 +3860,16 @@ checkAbandonedCheckoutReminders();
         console.log('✅ translations column ensured on pages and posts');
     } catch (e) {
         console.error('translations column migration error:', e.message);
+    }
+})();
+
+// Add position column to media table (used for ordering)
+(async () => {
+    try {
+        await pool.query(`ALTER TABLE media ADD COLUMN IF NOT EXISTS position INTEGER DEFAULT 0`);
+        console.log('✅ position column ensured on media');
+    } catch (e) {
+        console.error('media position column migration error:', e.message);
     }
 })();
 
