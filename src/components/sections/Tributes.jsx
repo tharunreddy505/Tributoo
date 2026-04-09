@@ -26,7 +26,7 @@ const Tributes = () => {
                     {tributes.filter(t =>
                         (t.subscriptionStatus === 'active' || t.subscriptionStatus === 'trial' || t.isLifetime === true) &&
                         (t.status === 'public' || !t.status)
-                    ).map((tribute) => (
+                    ).slice(-4).reverse().map((tribute) => (
                         <div key={tribute.id} className="bg-white p-8 rounded-2xl shadow-lg hover:shadow-xl transition-shadow flex flex-col items-start">
                             {/* Top Section: Image + Name/Date */}
                             <div className="flex items-center gap-6 mb-6 w-full">

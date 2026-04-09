@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLocation, useParams } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faBookOpen, faPlay, faPen, faShareNodes, faTimes, faChevronLeft, faChevronRight, faLockOpen, faUpload, faDownload, faFileAlt } from '@fortawesome/free-solid-svg-icons';
+import { faBookOpen, faPlay, faPen, faShareNodes, faTimes, faChevronLeft, faChevronRight, faLockOpen, faUpload, faFileAlt } from '@fortawesome/free-solid-svg-icons';
 import { QRCodeCanvas } from 'qrcode.react';
 import { useTributeContext } from '../context/TributeContext';
 import { useTranslation } from 'react-i18next';
@@ -76,6 +76,7 @@ const MemorialPage = () => {
         videos: rawData?.videos || [],
         videoUrls: (rawData?.videoUrls || []).filter(url => url && url.trim() !== ''),
         documents: rawData?.documents || [],
+        audios: rawData?.audios || [],
         comments: rawData?.comments || [],
         coverUrl: rawData?.coverUrl || null,
         id: rawData?.id || 'demo'
@@ -659,6 +660,31 @@ const MemorialPage = () => {
                                         {t('memorial_page.leave_message_button', 'Leave a Message')}
                                     </button>
                                 </div>
+
+                                {/* Audio Section */}
+                                {data.audios && data.audios.length > 0 && (
+                                    <div className="w-full max-w-3xl mx-auto mt-10">
+                                        <div className="flex flex-col items-center gap-3 mb-8">
+                                            <div className="w-14 h-14 rounded-full border border-[#D4AF37]/30 flex items-center justify-center text-[#D4AF37]/70 bg-white shadow-sm">
+                                                <svg viewBox="0 0 24 24" className="w-6 h-6 fill-current"><path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"/></svg>
+                                            </div>
+                                            <p className="text-[10px] tracking-[0.3em] uppercase text-gray-400 font-description">Audio</p>
+                                        </div>
+                                        <div className="space-y-3">
+                                            {data.audios.map((audio) => {
+                                                const label = audio.title || audio.alt_text || audio.url?.split('/').pop()?.replace(/[_-]/g, ' ').replace(/\.[^.]+$/, '') || 'Audio';
+                                                return (
+                                                    <div key={audio.id} className="flex flex-col gap-2 bg-white border border-gray-100 rounded-lg p-5 shadow-sm">
+                                                        <p className="font-medium text-gray-800 text-sm">{label}</p>
+                                                        <audio controls className="w-full h-10" src={audio.url}>
+                                                            Your browser does not support the audio element.
+                                                        </audio>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
 
                                 {/* Downloads Section */}
                                 {data.documents && data.documents.length > 0 && (

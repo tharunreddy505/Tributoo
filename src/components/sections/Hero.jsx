@@ -1,21 +1,37 @@
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faPlay } from '@fortawesome/free-solid-svg-icons';
 import { useTranslation } from 'react-i18next';
+import { useTributeContext } from '../../context/TributeContext';
 import heroImage from '../../assets/images/hero-image.png';
 
 const Hero = ({ onCreateClick }) => {
     const { t } = useTranslation();
+    const { settings } = useTributeContext();
+    const heroVideo = settings?.hero_video || null;
 
     return (
         <section className="relative h-screen flex items-center justify-center text-white overflow-hidden">
-            {/* Background Image */}
+            {/* Background Video or Image */}
             <div className="absolute inset-0 z-0">
-                <img
-                    src={heroImage}
-                    alt={t('hero.title_line1')}
-                    className="w-full h-full object-cover"
-                />
-                <div className="absolute inset-0 bg-black/40"></div> {/* Overlay */}
+                {heroVideo ? (
+                    <video
+                        key={heroVideo}
+                        autoPlay
+                        loop
+                        muted
+                        playsInline
+                        className="w-full h-full object-cover"
+                    >
+                        <source src={heroVideo} type="video/mp4" />
+                    </video>
+                ) : (
+                    <img
+                        src={heroImage}
+                        alt={t('hero.title_line1')}
+                        className="w-full h-full object-cover"
+                    />
+                )}
+                <div className="absolute inset-0 bg-black/50"></div>
             </div>
 
             <div className="container mx-auto px-6 relative z-10 text-center">

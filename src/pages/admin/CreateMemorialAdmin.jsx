@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faSave, faArrowLeft, faImage, faUpload, faTrash, faVideo, faPlus, faLink, faTimes, faCrown, faLock, faSpinner, faShoppingCart, faHeart } from '@fortawesome/free-solid-svg-icons';
+import { faSave, faArrowLeft, faImage, faUpload, faTrash, faVideo, faPlus, faLink, faTimes, faCrown, faLock, faSpinner, faShoppingCart, faHeart, faMusic } from '@fortawesome/free-solid-svg-icons';
 import { useTributeContext } from '../../context/TributeContext';
 import { Editor } from '@tinymce/tinymce-react';
 import { useTranslation } from 'react-i18next';
@@ -13,7 +13,7 @@ import { compressImage, compressImageToBlob, fileToBase64 } from '../../utils/im
 const CreateMemorialAdmin = () => {
     const navigate = useNavigate();
     const { i18n } = useTranslation();
-    const { addTribute, addMedia, uploadMediaFile, addToCart, products, fetchProducts, fetchTributes, fetchMedia, showToast, showAlert, getAuthHeaders } = useTributeContext();
+    const { addTribute, addMedia, uploadMediaFile, updateMediaDetails, addToCart, products, fetchProducts, fetchTributes, fetchMedia, showToast, showAlert, getAuthHeaders } = useTributeContext();
     const [loading, setLoading] = useState(false);
     const [loadingStatus, setLoadingStatus] = useState('');
     const [subscriptions, setSubscriptions] = useState(undefined); // undefined = checking
@@ -29,7 +29,8 @@ const CreateMemorialAdmin = () => {
         videoUrls: [''],
         coverUrl: null,
         status: 'public',
-        documents: []
+        documents: [],
+        audios: []
     });
     const [previews, setPreviews] = useState({
         photo: null,
@@ -296,6 +297,22 @@ const CreateMemorialAdmin = () => {
                                     console.error("Document upload error:", err);
                                 } finally {
                                     setLoadingStatus('Creating memorial...');
+                                }
+                            }
+                        }
+                    }
+
+                    // Upload Audios
+                    if (formData.audios?.length > 0) {
+                        for (const audio of formData.audios) {
+                            if (audio.file) {
+                                try {
+                                    const uploadedMedia = await uploadMediaFile(createdTribute.id, 'audio', audio.file, true);
+                                    if (uploadedMedia && uploadedMedia.id && audio.title) {
+                                        await updateMediaDetails(uploadedMedia.id, { title: audio.title });
+                                    }
+                                } catch (err) {
+                                    console.error("Audio upload error:", err);
                                 }
                             }
                         }
@@ -586,6 +603,57 @@ const CreateMemorialAdmin = () => {
                                     className="bg-primary text-white text-xs font-bold px-4 py-2 rounded hover:bg-opacity-90 shadow flex items-center gap-2 transition-all"
                                 >
                                     <FontAwesomeIcon icon={faPlus} className="text-[10px]" /> ADD DOCUMENT
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Audio Section */}
+                        <div className="mt-8 pt-6 border-t border-gray-100">
+                            <label className="block text-xs font-bold text-gray-500 uppercase mb-4 tracking-wider">Audio Files (optional)</label>
+                            <div className="space-y-4">
+                                {formData.audios?.map((audio, idx) => (
+                                    <div key={idx} className="p-4 border border-gray-200 rounded-lg space-y-3 bg-gray-50/30">
+                                        <div className="flex flex-col gap-3">
+                                            <input
+                                                type="file"
+                                                accept="audio/*"
+                                                onChange={(e) => {
+                                                    const file = e.target.files[0];
+                                                    if (file) {
+                                                        const newAudios = [...formData.audios];
+                                                        newAudios[idx] = { ...newAudios[idx], file };
+                                                        setFormData(prev => ({ ...prev, audios: newAudios }));
+                                                    }
+                                                }}
+                                                className="text-xs text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
+                                            />
+                                            <input
+                                                type="text"
+                                                value={audio.title}
+                                                onChange={(e) => {
+                                                    const newAudios = [...formData.audios];
+                                                    newAudios[idx] = { ...newAudios[idx], title: e.target.value };
+                                                    setFormData(prev => ({ ...prev, audios: newAudios }));
+                                                }}
+                                                placeholder="Audio title (optional)"
+                                                className="w-full px-3 py-2 rounded border border-gray-300 focus:border-primary outline-none text-sm bg-white"
+                                            />
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => setFormData(prev => ({ ...prev, audios: prev.audios.filter((_, i) => i !== idx) }))}
+                                            className="bg-primary text-white text-[10px] font-bold px-4 py-1.5 rounded hover:bg-opacity-90 transition-all shadow-sm"
+                                        >
+                                            REMOVE
+                                        </button>
+                                    </div>
+                                ))}
+                                <button
+                                    type="button"
+                                    onClick={() => setFormData(prev => ({ ...prev, audios: [...(prev.audios || []), { file: null, title: '' }] }))}
+                                    className="bg-primary text-white text-xs font-bold px-4 py-2 rounded hover:bg-opacity-90 shadow flex items-center gap-2 transition-all"
+                                >
+                                    <FontAwesomeIcon icon={faMusic} className="text-[10px]" /> ADD AUDIO
                                 </button>
                             </div>
                         </div>

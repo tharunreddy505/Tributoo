@@ -1,16 +1,19 @@
 import React, { useState } from 'react';
 import { useTributeContext } from '../../context/TributeContext';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faUpload, faSave, faImage } from '@fortawesome/free-solid-svg-icons';
+import { faUpload, faSave, faImage, faVideo, faTimes } from '@fortawesome/free-solid-svg-icons';
+import { API_URL } from '../../config';
 
 import { compressImage } from '../../utils/imageOptimizer';
 
 const SettingsAdmin = () => {
-    const { settings, updateSettings, showToast } = useTributeContext();
+    const { settings, updateSettings, uploadGlobalMedia, showToast } = useTributeContext();
     const [logo, setLogo] = React.useState(settings.logo || '');
     const [siteTitle, setSiteTitle] = React.useState(settings.site_title || '');
     const [siteFavicon, setSiteFavicon] = React.useState(settings.site_favicon || '');
     const [googleTranslateApiKey, setGoogleTranslateApiKey] = React.useState(settings.googleTranslateApiKey || '');
+    const [heroVideo, setHeroVideo] = React.useState(settings.hero_video || '');
+    const [heroVideoUploading, setHeroVideoUploading] = React.useState(false);
     const [loading, setLoading] = React.useState(false);
 
     // Sync state when settings load from API
@@ -21,7 +24,34 @@ const SettingsAdmin = () => {
         if (settings.googleTranslateApiKey && !googleTranslateApiKey) {
             setGoogleTranslateApiKey(settings.googleTranslateApiKey);
         }
-    }, [settings.logo, settings.site_title, settings.site_favicon, settings.googleTranslateApiKey]);
+        if (settings.hero_video && !heroVideo) setHeroVideo(settings.hero_video);
+    }, [settings.logo, settings.site_title, settings.site_favicon, settings.googleTranslateApiKey, settings.hero_video]);
+
+    const handleHeroVideoUpload = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        setHeroVideoUploading(true);
+        try {
+            const token = localStorage.getItem('token');
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('type', 'video');
+            const res = await fetch(`${API_URL}/api/media/upload`, {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${token}` },
+                body: formData
+            });
+            if (!res.ok) throw new Error('Upload failed');
+            const data = await res.json();
+            setHeroVideo(data.url);
+            showToast('Video uploaded! Click Save Settings to apply.', 'success');
+        } catch (err) {
+            showToast('Video upload failed.', 'error');
+        } finally {
+            setHeroVideoUploading(false);
+            e.target.value = '';
+        }
+    };
 
     const handleLogoUpload = async (e) => {
         const file = e.target.files[0];
@@ -55,7 +85,8 @@ const SettingsAdmin = () => {
             logo,
             site_title: siteTitle,
             site_favicon: siteFavicon,
-            googleTranslateApiKey
+            googleTranslateApiKey,
+            hero_video: heroVideo
         });
         setLoading(false);
         if (success) {
@@ -166,6 +197,50 @@ const SettingsAdmin = () => {
                                     <FontAwesomeIcon icon={faUpload} className="mr-1" />
                                     {siteFavicon ? 'Change Favicon' : 'Upload Favicon'}
                                 </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Hero Background Video */}
+                    <div className="pt-8 border-t border-gray-100 flex flex-col md:flex-row gap-8 items-start">
+                        <div className="w-full md:w-1/3">
+                            <label className="block text-sm font-bold text-gray-700 mb-2">Hero Background Video</label>
+                            <p className="text-xs text-gray-500 mb-4">
+                                This video plays as the background on the homepage hero section. Recommended: MP4, under 20MB.
+                            </p>
+                        </div>
+                        <div className="flex-1 space-y-4">
+                            {heroVideo && (
+                                <div className="relative rounded-lg overflow-hidden border border-gray-200 bg-black aspect-video max-h-48">
+                                    <video key={heroVideo} src={heroVideo} className="w-full h-full object-cover" muted loop autoPlay playsInline />
+                                    <button
+                                        onClick={() => setHeroVideo('')}
+                                        className="absolute top-2 right-2 bg-red-500 text-white rounded-full w-7 h-7 flex items-center justify-center hover:bg-red-600 transition-colors"
+                                        title="Remove video"
+                                    >
+                                        <FontAwesomeIcon icon={faTimes} className="text-xs" />
+                                    </button>
+                                </div>
+                            )}
+                            <div
+                                className="border-2 border-dashed border-gray-200 rounded-lg p-8 flex flex-col items-center justify-center bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer group"
+                                onClick={() => !heroVideoUploading && document.getElementById('hero-video-upload').click()}
+                            >
+                                <div className="w-14 h-14 rounded-full bg-gray-200 flex items-center justify-center text-gray-400 mb-3 group-hover:bg-gray-300 transition-colors">
+                                    <FontAwesomeIcon icon={faVideo} size="lg" />
+                                </div>
+                                <input
+                                    type="file"
+                                    id="hero-video-upload"
+                                    className="hidden"
+                                    accept="video/mp4,video/webm,video/ogg"
+                                    onChange={handleHeroVideoUpload}
+                                />
+                                <span className="text-sm font-medium text-primary">
+                                    <FontAwesomeIcon icon={faUpload} className="mr-2" />
+                                    {heroVideoUploading ? 'Uploading...' : heroVideo ? 'Change Video' : 'Upload Video'}
+                                </span>
+                                <p className="text-xs text-gray-400 mt-2">MP4 format recommended · Max 50MB</p>
                             </div>
                         </div>
                     </div>

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faSave, faArrowLeft, faImage, faTrash, faVideo, faPlus, faLink, faTimes, faEnvelope, faCrown, faGlobe, faSpinner, faLock, faFileAlt } from '@fortawesome/free-solid-svg-icons';
+import { faSave, faArrowLeft, faImage, faTrash, faVideo, faPlus, faLink, faTimes, faEnvelope, faCrown, faGlobe, faSpinner, faLock, faFileAlt, faMusic } from '@fortawesome/free-solid-svg-icons';
 import { useTributeContext } from '../../context/TributeContext';
 import { Editor } from '@tinymce/tinymce-react';
 import MediaPickerModal from '../../components/admin/MediaPickerModal';
@@ -95,13 +95,15 @@ const EditMemorialAdmin = () => {
         videoUrls: [],
         coverUrl: null,
         status: 'public',
-        documents: []
+        documents: [],
+        audios: []
     });
 
     const [newMedia, setNewMedia] = useState({
         images: [],
         videos: [],
-        documents: []
+        documents: [],
+        audios: []
     });
 
     const [previews, setPreviews] = useState({
@@ -177,7 +179,8 @@ const EditMemorialAdmin = () => {
                     packageName: found.packageName || null,
                     subscriptionStatus: found.subscriptionStatus || null,
                     status: found.status || 'public',
-                    documents: found.documents || []
+                    documents: found.documents || [],
+                    audios: found.audios || []
                 });
                 setHasLoadedData(true);
 
@@ -373,6 +376,32 @@ const EditMemorialAdmin = () => {
         }
     };
 
+    const handleNewAudioUpload = (e) => {
+        const files = Array.from(e.target.files);
+        if (files.length === 0) return;
+
+        if (isFree) {
+            showAlert('Audio uploads are restricted to Premium members. Upgrade to attach audio files to your memorial.', 'info', 'Premium Feature');
+            e.target.value = '';
+            return;
+        }
+
+        const newAudios = files.map(file => ({
+            file,
+            title: '',
+            isNew: true
+        }));
+        setFormData(prev => ({
+            ...prev,
+            audios: [...(prev.audios || []), ...newAudios]
+        }));
+        setNewMedia(prev => ({
+            ...prev,
+            audios: [...(prev.audios || []), ...newAudios]
+        }));
+        e.target.value = '';
+    };
+
     const sensors = useSensors(
         useSensor(PointerSensor),
         useSensor(KeyboardSensor, {
@@ -554,6 +583,28 @@ const EditMemorialAdmin = () => {
                                 });
                             } catch (err) {
                                 console.error("Document update error:", err);
+                            }
+                        }
+                    }
+                }
+
+                // Process Audios (always runs)
+                if (formData.audios?.length > 0) {
+                    for (const audio of formData.audios) {
+                        if (audio.isNew && audio.file) {
+                            try {
+                                const uploadedMedia = await uploadMediaFile(Number(id), 'audio', audio.file, true);
+                                if (uploadedMedia && uploadedMedia.id && audio.title) {
+                                    await updateMediaDetails(uploadedMedia.id, { title: audio.title });
+                                }
+                            } catch (err) {
+                                console.error("Audio upload error:", err);
+                            }
+                        } else if (audio.id && audio.title !== undefined) {
+                            try {
+                                await updateMediaDetails(audio.id, { title: audio.title });
+                            } catch (err) {
+                                console.error("Audio update error:", err);
                             }
                         }
                     }
@@ -936,6 +987,85 @@ const EditMemorialAdmin = () => {
                                             className="bg-primary text-white text-xs font-bold px-4 py-2 rounded hover:bg-opacity-90 shadow flex items-center gap-2 transition-all"
                                         >
                                             <FontAwesomeIcon icon={faPlus} className="text-[10px]" /> ADD DOCUMENT
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Audio Section */}
+                        <div className="mt-8 pt-6 border-t border-gray-100">
+                            <label className="block text-xs font-bold text-gray-500 uppercase mb-4 tracking-wider">Audio Files (optional)</label>
+                            <div className="space-y-4">
+                                {formData.audios?.map((audio, idx) => (
+                                    <div key={idx} className="p-4 border border-gray-200 rounded-lg space-y-3 bg-gray-50/30 relative">
+                                        <div className="flex flex-col gap-3">
+                                            {audio.isNew ? (
+                                                <div className="text-xs text-gray-400 italic flex items-center gap-2">
+                                                    <FontAwesomeIcon icon={faMusic} className="text-primary/50" />
+                                                    New file: {audio.file?.name}
+                                                </div>
+                                            ) : (
+                                                <div className="text-xs text-primary flex items-center gap-2">
+                                                    <FontAwesomeIcon icon={faMusic} />
+                                                    <a href={audio.url} target="_blank" rel="noopener noreferrer" className="hover:underline truncate max-w-xs">
+                                                        {audio.url?.split('/').pop()}
+                                                    </a>
+                                                </div>
+                                            )}
+                                            <input
+                                                type="text"
+                                                value={audio.title || ''}
+                                                onChange={(e) => {
+                                                    const newAudios = [...formData.audios];
+                                                    newAudios[idx] = { ...newAudios[idx], title: e.target.value };
+                                                    setFormData(prev => ({ ...prev, audios: newAudios }));
+                                                }}
+                                                placeholder="Audio title (optional)"
+                                                className="w-full px-3 py-2 rounded border border-gray-300 focus:border-primary outline-none text-sm bg-white"
+                                            />
+                                            {!audio.isNew && audio.url && (
+                                                <audio controls className="w-full h-10" src={audio.url} />
+                                            )}
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                if (!audio.isNew && audio.id) removeMedia(audio.id);
+                                                setFormData(prev => ({ ...prev, audios: prev.audios.filter((_, i) => i !== idx) }));
+                                            }}
+                                            className="bg-primary text-white text-[10px] font-bold px-4 py-1.5 rounded hover:bg-opacity-90 transition-all shadow-sm"
+                                        >
+                                            REMOVE
+                                        </button>
+                                    </div>
+                                ))}
+                                {isFree ? (
+                                    <div className="bg-gray-50 border border-gray-100 rounded-lg p-4 flex items-center gap-4">
+                                        <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-primary/40 shadow-sm border border-gray-100">
+                                            <FontAwesomeIcon icon={faMusic} />
+                                        </div>
+                                        <div>
+                                            <p className="text-sm font-bold text-gray-600">Audio Restricted</p>
+                                            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Upgrade to Premium to attach audio files</p>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="relative">
+                                        <input
+                                            type="file"
+                                            id="edit-audio-upload"
+                                            accept="audio/*"
+                                            multiple
+                                            className="hidden"
+                                            onChange={handleNewAudioUpload}
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => document.getElementById('edit-audio-upload').click()}
+                                            className="bg-primary text-white text-xs font-bold px-4 py-2 rounded hover:bg-opacity-90 shadow flex items-center gap-2 transition-all"
+                                        >
+                                            <FontAwesomeIcon icon={faPlus} className="text-[10px]" /> ADD AUDIO
                                         </button>
                                     </div>
                                 )}

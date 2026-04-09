@@ -1421,6 +1421,7 @@ const mapTribute = (row, req) => ({
     images: [],
     videos: [],
     documents: [],
+    audios: [],
     comments: []
 });
 
@@ -1551,6 +1552,7 @@ app.get('/api/tributes', async (req, res) => {
                     if (m.type === 'image' && m.alt_text !== 'Profile Photo' && m.alt_text !== 'Cover Image') tribute.images.push(mediaObj);
                     if (m.type === 'video') tribute.videos.push(mediaObj);
                     if (m.type === 'document') { if (!tribute.documents) tribute.documents = []; tribute.documents.push(mediaObj); }
+                    if (m.type === 'audio') { if (!tribute.audios) tribute.audios = []; tribute.audios.push(mediaObj); }
                 }
             });
 
@@ -1757,6 +1759,7 @@ app.get('/api/tributes/by-slug/:slug', async (req, res) => {
             if (m.type === 'image') tribute.images.push(mediaObj);
             if (m.type === 'video') tribute.videos.push(mediaObj);
             if (m.type === 'document') { if (!tribute.documents) tribute.documents = []; tribute.documents.push(mediaObj); }
+            if (m.type === 'audio') { if (!tribute.audios) tribute.audios = []; tribute.audios.push(mediaObj); }
         });
 
         // Attach comments
@@ -2382,7 +2385,7 @@ app.get('/api/settings', async (req, res) => {
         const result = await pool.query("SELECT * FROM settings");
         const settings = {};
         result.rows.forEach(row => {
-            const keysToFormat = ['logo', 'site_favicon', 'og_image'];
+            const keysToFormat = ['logo', 'site_favicon', 'og_image', 'hero_video'];
             settings[row.key] = keysToFormat.includes(row.key) ? formatMediaUrl(row.value, req) : row.value;
         });
         res.json(settings);
