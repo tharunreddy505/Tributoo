@@ -2717,37 +2717,39 @@ app.get('/api/menus/location/:location', async (req, res) => {
 });
 
 // Translation API
-// Translation API
-import { translate } from 'google-translate-api-x';
-
 app.post('/api/translate', async (req, res) => {
     try {
         const { text, targetLang } = req.body;
-        console.log(`Translating: "${text?.substring(0, 20)}..." to ${targetLang}`);
 
         if (!text || !targetLang) {
             return res.status(400).json({ error: "Missing text or targetLang" });
         }
 
-        // Fetch API key from settings
-        // const settingsRes = await pool.query("SELECT value FROM settings WHERE key = 'googleTranslateApiKey'");
-        // const apiKey = settingsRes.rows[0]?.value;
+        // Get API key saved from dashboard settings
+        const settingsRes = await pool.query("SELECT value FROM settings WHERE key = 'googleTranslateApiKey'");
+        const apiKey = settingsRes.rows[0]?.value;
 
-        // Note: google-translate-api-x doesn't require an API Key (it uses the web interface).
-        // If we wanted to use the official Google Cloud Translation API, we would need 'google-cloud/translate'.
-        // For now, we stick to the library which is free but rate-limited.
-        // We ensure we handle 'en' vs 'de' vs 'it' codes correctly.
+        if (apiKey) {
+            // Use official Google Cloud Translation API
+            const gcUrl = `https://translation.googleapis.com/language/translate/v2?key=${apiKey}`;
+            const gcRes = await fetch(gcUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ q: text, target: targetLang, format: 'text' }),
+            });
+            const gcData = await gcRes.json();
+            if (gcData.error) throw new Error(gcData.error.message);
+            const translatedText = gcData.data.translations[0].translatedText;
+            return res.json({ translatedText, sourceText: text, targetLang });
+        }
 
+        // Fallback: free unofficial library (no API key required)
+        const { translate } = await import('google-translate-api-x');
         const result = await translate(text, { to: targetLang });
-        console.log("Translation success:", result.text?.substring(0, 20));
-        res.json({
-            translatedText: result.text,
-            sourceText: text,
-            targetLang
-        });
+        res.json({ translatedText: result.text, sourceText: text, targetLang });
 
     } catch (err) {
-        console.error("Translation Error Details:", err);
+        console.error("Translation Error:", err.message);
         res.status(500).json({ error: "Translation failed", details: err.message });
     }
 });
